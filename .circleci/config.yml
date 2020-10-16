@@ -2,24 +2,52 @@ version: 2.1
 
 orbs:
   tools: replikativ/clj-tools@0
+jobs:
+  setup:
+    executor: tools/clojurecli
+    steps:
+      - restore_cache:
+          keys:
+            - source-{{ .Branch }}-{{ .Revision }}
+            - source-{{ .Branch }}
+            - source-
+      - checkout
+      - save_cache:
+          key: source-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - .git
+      - restore_cache:
+          keys:
+            - deps-{{ checksum "deps.edn" }}
+            - deps-
+      - run: clojure -e nil
+      - save_cache:
+          key: deps-{{ checksum "deps.edn" }}
+          paths:
+            - /home/circleci/.m2
+      - persist_to_workspace:
+          root: /home/circleci/
+          paths:
+            - .m2
+            - replikativ
 
 workflows:
   build-test-and-deploy:
     jobs:
-      - tools/setup
+      - setup
       - tools/format:
           requires:
-            - tools/setup
+            - setup
       - tools/unittest:
           requires:
-            - tools/setup
+            - setup
       - tools/integrationtest-postgresql:
           requires:
-            - tools/setup
+            - setup
       - tools/build:
           jarname: "datahike"
           requires:
-            - tools/setup
+            - setup
       - tools/deploy-snapshot:
           jarname: "datahike"
           context: clojars-deploy
@@ -27,7 +55,7 @@ workflows:
             branches:
               only: development
           requires:
-            - tools/setup
+            - setup
             - tools/format
             - tools/unittest
             - tools/integrationtest-postgresql
@@ -39,7 +67,7 @@ workflows:
             branches:
               only: master
           requires:
-            - tools/setup
+            - setup
             - tools/format
             - tools/unittest
             - tools/integrationtest-postgresql
